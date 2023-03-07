@@ -1,0 +1,74 @@
+---
+Resources:
+  MyS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: my-existing-s3-bucket # 既存のS3バケット名を指定します
+  MyServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: my-existing-iam-role # 既存のIAMロール名を指定します
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+        - PolicyName: MyPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:GetObjectVersion'
+                  - 's3:GetBucketVersioning'
+                  - 's3:GetBucketLocation'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${MyS3Bucket}'
+                  - !Sub 'arn:aws:s3:::${MyS3Bucket}/*'
+
+  MyPipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      Name: my-pipeline
+      RoleArn: !GetAtt MyServiceRole.Arn # 既存のIAMロールのARNを指定します
+      ArtifactStore:
+        Type: S3
+        Location: !Ref MyS3Bucket # 既存のS3バケットの名前を指定します
+        EncryptionKey:
+          Type: KMS
+          Id: <KMS key ID>
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: '1'
+                Provider: CodeCommit
+              Configuration:
+                RepositoryName: my-repo
+                BranchName: master
+              OutputArtifacts:
+                - Name: SourceCode
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: my-project
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: BuiltArtifact
+              RunOrder: 1
